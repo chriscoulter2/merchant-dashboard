@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Topbar from "../../../components/Topbar";
 
 export default function AlertsPage() {
   const alerts = [
@@ -9,18 +9,14 @@ export default function AlertsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-slate-100 p-6">
-      <div className="max-w-5xl mx-auto">
-        <Link href="/" className="text-blue-600 font-medium">
-          ← Back to Dashboard
-        </Link>
+    <>
+      <Topbar
+        title="Alerts"
+        subtitle="Monitor changes, warnings, and opportunities"
+      />
 
-        <div className="bg-white rounded-2xl shadow-sm p-8 mt-4">
-          <h1 className="text-3xl font-bold mb-2">Alerts</h1>
-          <p className="text-slate-500 mb-6">
-            Important changes and warnings will appear here.
-          </p>
-
+      <div className="p-6">
+        <div className="bg-white rounded-2xl shadow-sm p-8">
           <div className="space-y-4">
             {alerts.map((alert, i) => (
               <div
@@ -33,6 +29,6 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
-    </main>
+    </>
   );
 }
