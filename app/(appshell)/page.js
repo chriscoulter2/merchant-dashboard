@@ -20,6 +20,10 @@ function parseNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function formatMoney(value) {
+  return `$${value.toLocaleString()}`;
+}
+
 export default function Home() {
   const { csvRows, csvHeaders, csvFileName } = useData();
 
@@ -27,6 +31,7 @@ export default function Home() {
   const ordersColumn = findColumnName(csvHeaders, ["orders", "order_count", "quantity", "qty"]);
   const ratingColumn = findColumnName(csvHeaders, ["rating", "reviewscore", "review_score", "stars"]);
   const productColumn = findColumnName(csvHeaders, ["product", "item", "product_name", "name"]);
+  const dateColumn = findColumnName(csvHeaders, ["date", "day", "order_date", "created_at"]);
 
   const totalRevenue = revenueColumn
     ? csvRows.reduce((sum, row) => sum + parseNumber(row[revenueColumn]), 0)
@@ -44,7 +49,10 @@ export default function Home() {
     : "—";
 
   const lowRatingCount = ratingColumn
-    ? csvRows.filter((row) => parseNumber(row[ratingColumn]) > 0 && parseNumber(row[ratingColumn]) < 4).length
+    ? csvRows.filter((row) => {
+        const value = parseNumber(row[ratingColumn]);
+        return value > 0 && value < 4;
+      }).length
     : 0;
 
   const productTotals = {};
@@ -65,10 +73,56 @@ export default function Home() {
   const topProduct =
     Object.entries(productTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
+  let chartTitle = "Revenue Chart";
+  let chartData = [];
+
+  if (dateColumn && revenueColumn) {
+    const revenueByDate = {};
+
+    csvRows.forEach((row) => {
+      const date = row[dateColumn] || "Unknown";
+      const revenue = parseNumber(row[revenueColumn]);
+
+      if (!revenueByDate[date]) {
+        revenueByDate[date] = 0;
+      }
+
+      revenueByDate[date] += revenue;
+    });
+
+    chartData = Object.entries(revenueByDate)
+      .map(([label, value]) => ({ label, value }))
+      .slice(0, 10);
+
+    chartTitle = `Revenue by ${dateColumn}`;
+  } else if (productColumn && revenueColumn) {
+    const revenueByProduct = {};
+
+    csvRows.forEach((row) => {
+      const product = row[productColumn] || "Unknown";
+      const revenue = parseNumber(row[revenueColumn]);
+
+      if (!revenueByProduct[product]) {
+        revenueByProduct[product] = 0;
+      }
+
+      revenueByProduct[product] += revenue;
+    });
+
+    chartData = Object.entries(revenueByProduct)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    chartTitle = `Revenue by ${productColumn}`;
+  }
+
+  const maxChartValue = Math.max(...chartData.map((item) => item.value), 1);
+
   const cards = [
     {
       title: "Total Revenue",
-      value: revenueColumn ? `$${totalRevenue.toLocaleString()}` : "No revenue column",
+      value: revenueColumn ? formatMoney(totalRevenue) : "No revenue column",
       helper: revenueColumn ? `Using "${revenueColumn}"` : 'Add a "revenue" column',
       positive: true,
     },
@@ -100,9 +154,9 @@ export default function Home() {
     ratingColumn
       ? `${lowRatingCount} rows are below a 4.0 rating threshold.`
       : "Upload a CSV with a rating column to unlock sentiment alerts.",
-    productColumn
-      ? `Detected product column: "${productColumn}".`
-      : "Add a product column to compare items.",
+    chartData.length > 0
+      ? `Chart is currently grouped using ${dateColumn ? `"${dateColumn}"` : `"${productColumn}"`}.`
+      : "Upload a CSV with revenue plus date or product columns to generate a chart.",
   ];
 
   return (
@@ -139,22 +193,46 @@ export default function Home() {
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-bold mb-4">Detected CSV Columns</h2>
+            <h2 className="text-xl font-bold mb-4">{chartTitle}</h2>
 
-            {csvHeaders.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {csvHeaders.map((header) => (
-                  <span
-                    key={header}
-                    className="bg-slate-100 border border-slate-200 rounded-full px-3 py-1 text-sm"
-                  >
-                    {header}
-                  </span>
-                ))}
-              </div>
+            {chartData.length > 0 ? (
+              <>
+                <div className="h-72 flex items-end gap-4">
+                  {chartData.map((item) => {
+                    const heightPercent = Math.max(
+                      10,
+                      Math.round((item.value / maxChartValue) * 100)
+                    );
+
+                    return (
+                      <div
+                        key={item.label}
+                        className="flex-1 flex flex-col items-center justify-end h-full"
+                      >
+                        <div className="text-xs text-slate-500 mb-2">
+                          {formatMoney(item.value)}
+                        </div>
+
+                        <div
+                          className="w-full max-w-[70px] bg-blue-500 rounded-t-xl"
+                          style={{ height: `${heightPercent}%` }}
+                        />
+
+                        <div className="mt-2 text-sm text-slate-500 text-center break-words">
+                          {item.label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="text-slate-500 text-sm mt-4">
+                  Showing up to 10 grouped revenue bars from the uploaded CSV.
+                </p>
+              </>
             ) : (
               <p className="text-slate-500">
-                Upload a CSV on the Uploads page to generate real dashboard metrics.
+                Upload a CSV with a revenue column plus either a date column or product column to generate the chart.
               </p>
             )}
           </div>
@@ -172,6 +250,27 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="mt-6 bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-xl font-bold mb-4">Detected CSV Columns</h2>
+
+          {csvHeaders.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {csvHeaders.map((header) => (
+                <span
+                  key={header}
+                  className="bg-slate-100 border border-slate-200 rounded-full px-3 py-1 text-sm"
+                >
+                  {header}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500">
+              Upload a CSV on the Uploads page to generate real dashboard metrics.
+            </p>
+          )}
         </section>
       </div>
     </>
