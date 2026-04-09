@@ -3,12 +3,20 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import Topbar from "../../../components/Topbar";
+import { useData } from "../../../components/DataProvider";
 
 export default function UploadsPage() {
-  const [fileName, setFileName] = useState("");
-  const [headers, setHeaders] = useState([]);
-  const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
+
+  const {
+    csvRows,
+    csvHeaders,
+    csvFileName,
+    setCsvRows,
+    setCsvHeaders,
+    setCsvFileName,
+    clearCsvData,
+  } = useData();
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -19,14 +27,11 @@ export default function UploadsPage() {
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setError("Please upload a CSV file.");
-      setFileName("");
-      setHeaders([]);
-      setRows([]);
+      clearCsvData();
       return;
     }
 
     setError("");
-    setFileName(file.name);
 
     Papa.parse(file, {
       header: true,
@@ -36,13 +41,13 @@ export default function UploadsPage() {
         const parsedHeaders =
           parsedRows.length > 0 ? Object.keys(parsedRows[0]) : [];
 
-        setHeaders(parsedHeaders);
-        setRows(parsedRows);
+        setCsvFileName(file.name);
+        setCsvHeaders(parsedHeaders);
+        setCsvRows(parsedRows);
       },
       error: function () {
         setError("There was a problem reading that CSV file.");
-        setHeaders([]);
-        setRows([]);
+        clearCsvData();
       },
     });
   }
@@ -73,23 +78,32 @@ export default function UploadsPage() {
             </label>
           </div>
 
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={clearCsvData}
+              className="bg-slate-200 text-slate-900 px-4 py-2 rounded-xl font-semibold"
+            >
+              Clear Uploaded Data
+            </button>
+          </div>
+
           {error ? (
             <div className="mt-6 rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
               {error}
             </div>
           ) : null}
 
-          {fileName ? (
+          {csvFileName ? (
             <div className="mt-6 bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="font-semibold">Uploaded File</div>
-              <div className="text-slate-600 text-sm mt-1">{fileName}</div>
+              <div className="text-slate-600 text-sm mt-1">{csvFileName}</div>
               <div className="text-slate-600 text-sm mt-2">
-                Rows found: {rows.length}
+                Rows found: {csvRows.length}
               </div>
             </div>
           ) : null}
 
-          {rows.length > 0 ? (
+          {csvRows.length > 0 ? (
             <div className="mt-6">
               <h2 className="text-xl font-bold mb-4">Preview</h2>
 
@@ -97,7 +111,7 @@ export default function UploadsPage() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-100">
                     <tr>
-                      {headers.map((header) => (
+                      {csvHeaders.map((header) => (
                         <th
                           key={header}
                           className="text-left px-4 py-3 font-semibold border-b border-slate-200"
@@ -109,9 +123,9 @@ export default function UploadsPage() {
                   </thead>
 
                   <tbody>
-                    {rows.slice(0, 10).map((row, index) => (
+                    {csvRows.slice(0, 10).map((row, index) => (
                       <tr key={index} className="border-b border-slate-100">
-                        {headers.map((header) => (
+                        {csvHeaders.map((header) => (
                           <td key={header} className="px-4 py-3 text-slate-700">
                             {row[header]}
                           </td>
